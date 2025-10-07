@@ -143,7 +143,7 @@ int main(int argc, char *argv[]){
     signal (SIGINT, signal_handler);
     #endif
 
-    XPa xpa ("sf2generator");
+    XPa xpa ("sf2generate");
     if(!xpa.openStream(0, 2, &process, (void*) &Sync)) ui.onExit();
 
     ui.setJackSampleRate(xpa.getSampleRate());

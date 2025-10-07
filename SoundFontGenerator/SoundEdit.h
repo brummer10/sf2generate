@@ -87,7 +87,12 @@ public:
     // stop background threads and quit main window
     void onExit() {
         pa.stop();
+        #if defined(__linux__) || defined(__FreeBSD__) || \
+            defined(__NetBSD__) || defined(__OpenBSD__)
         quit(w);
+        #else
+        main_quit(w->app);
+        #endif
     }
     
     // receive Sample Rate from audio back-end

@@ -69,16 +69,16 @@ endif
 
 ifeq ($(TARGET), Linux)
 	# set compile flags
-	CFLAGS += -I. -I./zita-resampler-1.1.0 -Wall -funroll-loops `pkg-config --cflags sndfile $(USEAPI) rubberband`\
+	CFLAGS += -I. -I./zita-resampler-1.1.0 -Wall -funroll-loops `$(PKGCONFIG) $(PKGCONFIG_FLAGS) --cflags sndfile $(USEAPI) `\
 	-ffast-math -fomit-frame-pointer -fstrength-reduce -fdata-sections -Wl,--gc-sections \
 	-pthread $(SSE_CFLAGS)
 	CXXFLAGS += -MMD -std=c++20 -D_OS_UNIX_ -DALVER=\"$(VER)\" $(CFLAGS)
-	LDFLAGS += -I. -lm -pthread -lpthread `pkg-config --libs sndfile $(USEAPI) rubberband`
+	LDFLAGS += -I. -lm -pthread -lpthread `$(PKGCONFIG) $(PKGCONFIG_FLAGS) --libs sndfile $(USEAPI)`
 	ifneq ($(MACOS)$(WINDOWS),true)
 		LDFLAGS += -lrt -lc
 	endif
 	GUI_LDFLAGS += -I. -I$(HEADER_DIR) \
-	-L. $(LIB_DIR)libxputty.a  `pkg-config --static --cflags --libs cairo x11` -lm
+	-L. $(LIB_DIR)libxputty.a  `$(PKGCONFIG) $(PKGCONFIG_FLAGS) --cflags --libs cairo x11` -lm
 else ifeq ($(TARGET), Windows)
 
 	CXXFLAGS += -MMD -std=c++20 -DALVER=\"$(VER)\" $(CFLAGS)
