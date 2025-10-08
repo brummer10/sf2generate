@@ -83,13 +83,13 @@ public:
         delete[] samples;
         if (!data.empty()) {
             loop_data.assign(data.begin(), data.end());
-            croosfade();
+            //croosfade();
         }
         return !data.empty();
     }
     
-    inline bool convert(const float *samples, const uint16_t samplerate,
-            const uint16_t samplesize, const uint16_t loop_l, const uint16_t loop_r) {
+    inline bool convert(const float *samples, const uint32_t samplerate,
+            const uint32_t samplesize, const uint32_t loop_l, const uint32_t loop_r) {
         data.clear();
         sampleRate = samplerate;
         for (uint32_t i = 0; i<samplesize; i++) {
@@ -97,7 +97,7 @@ public:
         }
         if (!data.empty()) {
             loop_data.assign(data.begin() + loop_l, data.begin() + loop_r);
-            croosfade();
+            //croosfade();
         }
         return !data.empty();
     }
@@ -129,21 +129,28 @@ class SoundFontWriter {
 public:
 
     // takes a audio file and convert it to mono 16 bit when needed and write it into a SoundFont (sf2)
-    bool write_sf2(const std::string& filename, const std::string& sf2file, const std::string& name) {
+    bool write_sf2(const std::string& filename, const std::string& sf2file,
+                    const std::string& name, uint8_t rootNote = 60, const uint8_t lowNote = 0,
+                    const uint8_t highNote = 127) {
         if (!sample.load(filename)) {
             std::cerr << "Failed to read wav file or unsupported format!\n";
             return false;
         }
         loop_left = 0;
         loop_right = sample.data.size();
+        rootKey = rootNote;
+        lowKey = lowNote;
+        highKey = lowNote;
         return write_sf2(sf2file, name);
     }
 
     // takes a audio buffer as float*, clip the buffer for looping to the given size (start - end loop)
     // and convert it to 16 bit and write it into a SoundFont (sf2)
-    bool generate_sf2(const float *samples, const uint16_t loop_l, const uint16_t loop_r,
-                                    const uint16_t samplesize, const uint16_t samplerate, 
-                                    const std::string& sf2file, const std::string& name) {
+    bool generate_sf2(const float *samples, const uint32_t loop_l, const uint32_t loop_r,
+                    const uint32_t samplesize, const uint32_t samplerate, 
+                    const std::string& sf2file, const std::string& name, 
+                    const uint8_t rootNote = 60 , const uint8_t lowNote = 0,
+                    const uint8_t highNote = 127) {
 
         if (!sample.convert(samples, samplerate, samplesize, loop_l, loop_r)) {
             std::cerr << "Failed to read wav file or unsupported format!\n";
@@ -151,11 +158,20 @@ public:
         }
         loop_left = loop_l;
         loop_right = loop_r;
+        rootKey = rootNote;
+        lowKey = lowNote;
+        highKey = lowNote;
         return write_sf2(sf2file, name);
     }
 
 
-    SoundFontWriter(){};
+    SoundFontWriter() {
+        loop_left = 0;
+        loop_right = 0;
+        rootKey = 60;
+        lowKey = 0;
+        highKey = 127;
+    };
     ~SoundFontWriter(){};
 
 private:
@@ -167,8 +183,11 @@ private:
     std::vector<uint8_t> riff;
     std::vector<std::vector<uint8_t>> pdta_chunks;
 
-    uint16_t loop_left;
-    uint16_t loop_right;
+    uint32_t loop_left;
+    uint32_t loop_right;
+    uint8_t  rootKey;
+    uint8_t  lowKey;
+    uint8_t  highKey;
 
     // Buffer helpers for little-endian binary writing
     template<typename T>
@@ -307,9 +326,9 @@ private:
         // instrument 0 (OneShot) uses igen records starting at index 0
         write<uint16_t>(ibag, 0); write<uint16_t>(ibag, 0);
         // instrument 1 (Looped) uses igen records starting at index 2
-        write<uint16_t>(ibag, 2); write<uint16_t>(ibag, 0);
-        // terminator: points to igen index 4 (end)
         write<uint16_t>(ibag, 4); write<uint16_t>(ibag, 0);
+        // terminator: points to igen index 4 (end)
+        write<uint16_t>(ibag, 9); write<uint16_t>(ibag, 0);
         //assert(ibag.size() == 8 + 12);
         pdta_chunks.push_back(std::move(ibag));
     }
@@ -326,11 +345,15 @@ private:
     void write_igen() {
         // igen (4*5)
         std::vector<uint8_t> igen;
-        write_str(igen, "igen", 4); write<uint32_t>(igen, 4*5);
+        write_str(igen, "igen", 4); write<uint32_t>(igen, 4*9);
         // Instrument 0 (OneShot)
+        write<uint16_t>(igen, 15); write<uint16_t>(igen, 500);  // Chorus send 50%
+        write<uint16_t>(igen, 16); write<uint16_t>(igen, 500);  // Reverb send 50%
         write<uint16_t>(igen, 54); write<uint16_t>(igen, 0); // SampleModes = OneShoot
         write<uint16_t>(igen, 53); write<uint16_t>(igen, 0); // SampleID, 0
         // Instrument 1 (Looped)
+        write<uint16_t>(igen, 15); write<uint16_t>(igen, 500);  // Chorus send 50%
+        write<uint16_t>(igen, 16); write<uint16_t>(igen, 500);  // Reverb send 50%
         write<uint16_t>(igen, 54); write<uint16_t>(igen, 1); // SampleModes = Standard Loop
         write<uint16_t>(igen, 53); write<uint16_t>(igen, 1); // SampleID, 1
         // global terminator
@@ -350,7 +373,7 @@ private:
         write<uint32_t>(shdr, 16);                                    // dwStartLoop
         write<uint32_t>(shdr, 16 + (uint32_t)sample.data.size()-1);   // dwEndLoop
         write<uint32_t>(shdr, sample.sampleRate);                     // dwSampleRate
-        write<uint8_t>(shdr, 60);                                     // byOriginalPitch
+        write<uint8_t>(shdr, rootKey);                                // byOriginalPitch
         write<int8_t>(shdr, 0);                                       // chPitchCorrection
         write<uint16_t>(shdr, 0);                                     // wSampleLink
         write<uint16_t>(shdr, 1);                                     // sfSampleType (mono)
@@ -361,7 +384,7 @@ private:
         write<uint32_t>(shdr, 32 + (uint32_t)sample.data.size());     // dwStartLoop
         write<uint32_t>(shdr, 32 + (uint32_t)sample.data.size() + sample.loop_data.size()-1);    // dwEndLoop
         write<uint32_t>(shdr, sample.sampleRate);                     // dwSampleRate
-        write<uint8_t>(shdr, 60);                                     // byOriginalPitch
+        write<uint8_t>(shdr, rootKey);                                // byOriginalPitch
         write<int8_t>(shdr, 0);                                       // chPitchCorrection
         write<uint16_t>(shdr, 0);                                     // wSampleLink
         write<uint16_t>(shdr, 1);                                     // sfSampleType (mono)
@@ -373,7 +396,7 @@ private:
         write<int8_t>(shdr, 0);                                       // chPitchCorrection
         write<uint16_t>(shdr, 0);                                     // wSampleLink
         write<uint16_t>(shdr, 1);                                     // sfSampleType
-        //assert(shdr.size() == 8 + 92);
+        //assert(shdr.size() == 8 + 138);
         pdta_chunks.push_back(std::move(shdr));
     }
 
