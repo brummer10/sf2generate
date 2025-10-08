@@ -89,7 +89,7 @@ else ifeq ($(TARGET), Windows)
 	`$(PKGCONFIG) $(PKGCONFIG_FLAGS) --cflags --libs cairo ` \
 	-L. $(LIB_DIR)libxputty.$(STATIC_LIB_EXT) -lm $(PAWPAW_LFLAGS)
 
-	CFLAGS += -I. -I./zita-resampler-1.1.0 -Wall -funroll-loops `pkg-config --cflags sndfile $(USEAPI)`\
+	CFLAGS += -I. -I./zita-resampler-1.1.0 -Wall -funroll-loops `$(PKGCONFIG) --cflags sndfile $(USEAPI)`\
 	-ffast-math -fomit-frame-pointer -fstrength-reduce -fdata-sections -Wl,--gc-sections \
 	-pthread $(SSE_CFLAGS)
 
@@ -100,7 +100,7 @@ endif
 	# invoke build files
 	OBJECTS = main.c
 
-	DEPS = alooper.d $(RESAMP_DIR)resampler.d  $(RESAMP_DIR)resampler_table.d
+	DEPS = sf2generate.d $(RESAMP_DIR)resampler.d  $(RESAMP_DIR)resampler_table.d
 
 .PHONY : mod all clean install uninstall
 

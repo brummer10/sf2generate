@@ -42,6 +42,7 @@ clean:
 	@rm -f ./libxputty/xputty/resources/load_.png
 	@rm -f ./libxputty/xputty/resources/save_.png
 	@rm -f ./libxputty/xputty/resources/play.png
+	@rm -f ./libxputty/xputty/resources/clip_.png
 
 
 features:

@@ -33,6 +33,7 @@
 class AudioConvert {
 public:
     std::vector<int16_t> data;
+    std::vector<int16_t> loop_data;
     uint32_t channels;
     uint32_t samplesize;
     uint32_t sampleRate;
@@ -80,15 +81,23 @@ public:
             data.push_back(floatToInt16(samples[i * info.channels]));
         }
         delete[] samples;
+        if (!data.empty()) {
+            loop_data.assign(data.begin(), data.end());
+            croosfade();
+        }
         return !data.empty();
     }
     
     inline bool convert(const float *samples, const uint16_t samplerate,
-                    const uint16_t samplesize, const uint16_t channels) {
+            const uint16_t samplesize, const uint16_t loop_l, const uint16_t loop_r) {
         data.clear();
         sampleRate = samplerate;
         for (uint32_t i = 0; i<samplesize; i++) {
-            data.push_back(floatToInt16(samples[i * channels]));
+            data.push_back(floatToInt16(samples[i]));
+        }
+        if (!data.empty()) {
+            loop_data.assign(data.begin() + loop_l, data.begin() + loop_r);
+            croosfade();
         }
         return !data.empty();
     }
@@ -99,71 +108,65 @@ private:
         x = std::fmax(-1.0f, std::fmin(1.0f, x));
         return static_cast<int16_t>(std::lrintf(x * 32767.0f));
     }
+
+    inline void croosfade() {
+        size_t fadeLen = std::min<size_t>(256, loop_data.size() / 10);
+        if (fadeLen == 0) return;
+        // fade in at loop start
+        for (size_t i = 0; i < fadeLen; ++i) {
+            float gain = static_cast<float>(i) / static_cast<float>(fadeLen);
+            loop_data[i] *= gain;
+        }
+        // fade out at loop end - fade length 
+        for (size_t i = loop_data.size() - fadeLen; i < loop_data.size(); ++i) {
+            float gain = 1.0f - static_cast<float>(i) / static_cast<float>(fadeLen);
+            loop_data[i] *= gain;
+        }
+    }
 };
 
 class SoundFontWriter {
 public:
 
+    // takes a audio file and convert it to mono 16 bit when needed and write it into a SoundFont (sf2)
     bool write_sf2(const std::string& filename, const std::string& sf2file, const std::string& name) {
         if (!sample.load(filename)) {
             std::cerr << "Failed to read wav file or unsupported format!\n";
             return false;
         }
-        pdta_chunks.clear();
         loop_left = 0;
         loop_right = sample.data.size();
-        write_info(name);
-        write_sdta();
-        write_phdr();
-        write_pbag();
-        write_pmod();
-        write_pgen();
-        write_inst();
-        write_ibag();
-        write_imod();
-        write_igen();
-        write_shdr(name);
-        write_pdta();
-        write_riff();
-        return write_to_disk(sf2file);
+        return write_sf2(sf2file, name);
     }
 
-    bool generate_sf2(const float *samples, const uint16_t loop_l, const uint16_t loop_r, const uint16_t channels,
-            const uint16_t samplesize, const uint16_t samplerate, const std::string& sf2file, const std::string& name) {
-        if (!sample.convert(samples, samplerate, samplesize, channels)) {
+    // takes a audio buffer as float*, clip the buffer for looping to the given size (start - end loop)
+    // and convert it to 16 bit and write it into a SoundFont (sf2)
+    bool generate_sf2(const float *samples, const uint16_t loop_l, const uint16_t loop_r,
+                                    const uint16_t samplesize, const uint16_t samplerate, 
+                                    const std::string& sf2file, const std::string& name) {
+
+        if (!sample.convert(samples, samplerate, samplesize, loop_l, loop_r)) {
             std::cerr << "Failed to read wav file or unsupported format!\n";
             return false;
         }
-        pdta_chunks.clear();
         loop_left = loop_l;
         loop_right = loop_r;
-        write_info(name);
-        write_sdta();
-        write_phdr();
-        write_pbag();
-        write_pmod();
-        write_pgen();
-        write_inst();
-        write_ibag();
-        write_imod();
-        write_igen();
-        write_shdr(name);
-        write_pdta();
-        write_riff();
-        return write_to_disk(sf2file);
+        return write_sf2(sf2file, name);
     }
 
-    AudioConvert sample;
 
     SoundFontWriter(){};
     ~SoundFontWriter(){};
 
 private:
+    AudioConvert sample;
+
     std::vector<uint8_t> info;
     std::vector<uint8_t> sdta;
     std::vector<uint8_t> pdta;
     std::vector<uint8_t> riff;
     std::vector<std::vector<uint8_t>> pdta_chunks;
+
     uint16_t loop_left;
     uint16_t loop_right;
 
@@ -203,6 +206,11 @@ private:
         for (int i=0; i<16; ++i) write<int16_t>(sdta, 0);
         sdta.insert(sdta.end(), reinterpret_cast<const uint8_t*>(sample.data.data()),
             reinterpret_cast<const uint8_t*>(sample.data.data()) + sample.data.size()*2);
+
+        for (int i=0; i<16; ++i) write<int16_t>(sdta, 0);
+
+        sdta.insert(sdta.end(), reinterpret_cast<const uint8_t*>(sample.loop_data.data()),
+            reinterpret_cast<const uint8_t*>(sample.loop_data.data()) + sample.loop_data.size()*2);
 
         for (int i=0; i<16; ++i) write<int16_t>(sdta, 0);
 
@@ -324,7 +332,7 @@ private:
         write<uint16_t>(igen, 53); write<uint16_t>(igen, 0); // SampleID, 0
         // Instrument 1 (Looped)
         write<uint16_t>(igen, 54); write<uint16_t>(igen, 1); // SampleModes = Standard Loop
-        write<uint16_t>(igen, 53); write<uint16_t>(igen, 0); // SampleID, 0
+        write<uint16_t>(igen, 53); write<uint16_t>(igen, 1); // SampleID, 1
         // global terminator
         write<uint16_t>(igen, 0); write<uint16_t>(igen, 0);
         //assert(igen.size() == 8 + 20);
@@ -334,13 +342,24 @@ private:
     void write_shdr(const std::string& name) {
         // shdr (46*2)
         std::vector<uint8_t> shdr;
-        write_str(shdr, "shdr", 4); write<uint32_t>(shdr, 46*2);
+        write_str(shdr, "shdr", 4); write<uint32_t>(shdr, 46*3);
         // Real sample header (46 bytes)
-        write_strz(shdr, name, 20);                                   // 20
+        write_strz(shdr, "OneShoot", 20);                             // 20
         write<uint32_t>(shdr, 16);                                    // dwStart
-        write<uint32_t>(shdr, 16 + (uint32_t)sample.data.size());     // dwEnd
-        write<uint32_t>(shdr, 16 + (uint32_t)loop_left);              // dwStartLoop
-        write<uint32_t>(shdr, 16 + (uint32_t)loop_right);             // dwEndLoop
+        write<uint32_t>(shdr, 16 + (uint32_t)sample.data.size()-1);   // dwEnd
+        write<uint32_t>(shdr, 16);                                    // dwStartLoop
+        write<uint32_t>(shdr, 16 + (uint32_t)sample.data.size()-1);   // dwEndLoop
+        write<uint32_t>(shdr, sample.sampleRate);                     // dwSampleRate
+        write<uint8_t>(shdr, 60);                                     // byOriginalPitch
+        write<int8_t>(shdr, 0);                                       // chPitchCorrection
+        write<uint16_t>(shdr, 0);                                     // wSampleLink
+        write<uint16_t>(shdr, 1);                                     // sfSampleType (mono)
+        // Real sample header (46 bytes)
+        write_strz(shdr, "Loop", 20);                                   // 20
+        write<uint32_t>(shdr, 32 +  (uint32_t)sample.data.size());     // dwStart
+        write<uint32_t>(shdr, 32 + (uint32_t)sample.data.size() + sample.loop_data.size()-1);     // dwEnd
+        write<uint32_t>(shdr, 32 + (uint32_t)sample.data.size());     // dwStartLoop
+        write<uint32_t>(shdr, 32 + (uint32_t)sample.data.size() + sample.loop_data.size()-1);    // dwEndLoop
         write<uint32_t>(shdr, sample.sampleRate);                     // dwSampleRate
         write<uint8_t>(shdr, 60);                                     // byOriginalPitch
         write<int8_t>(shdr, 0);                                       // chPitchCorrection
@@ -390,6 +409,23 @@ private:
         return true;
     }
 
+    bool write_sf2(const std::string& sf2file, const std::string& name) {
+        pdta_chunks.clear();
+        write_info(name);
+        write_sdta();
+        write_phdr();
+        write_pbag();
+        write_pmod();
+        write_pgen();
+        write_inst();
+        write_ibag();
+        write_imod();
+        write_igen();
+        write_shdr(name);
+        write_pdta();
+        write_riff();
+        return write_to_disk(sf2file);
+    }
 };
 
 #endif

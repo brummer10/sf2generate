@@ -108,27 +108,11 @@ public:
         saveBuffer = nullptr;
         saveBuffer = new float[samplesize];
         std::memset(saveBuffer, 0, samplesize * sizeof(float));
-        static float ramp = 0.0;
-        static const float ramp_step = 256.0;
         for (uint32_t i = 0 ; i < samplesize ;i++){
-            saveBuffer[i] = samples[i] * gain;
-            if (i < ramp_step) {
-                if (ramp < ramp_step) {
-                    ramp += 1.0f / channels;
-                }
-                const float fade = max(0.0,ramp) /ramp_step ;
-                saveBuffer[i] *= fade;
-            // ramp down on loop end point
-            } else if (i > samplesize - ramp_step) {
-                if (ramp > 0.0) {
-                    ramp -= 1.0f / channels;
-                }
-                const float fade = max(0.0,ramp) /ramp_step ;
-                saveBuffer[i] *= fade;
-            }
+            saveBuffer[i] = samples[i*channels] * gain;
         }
         std::string sf2name = name.substr(0,name.find_last_of('.'))+".sf2";
-        swf.generate_sf2(saveBuffer, from, to, channels, samplesize, SampleRate, sf2name, "Sample");
+        swf.generate_sf2(saveBuffer, from, to, samplesize, SampleRate, sf2name, "Sample");
     }
 
 };

@@ -210,6 +210,14 @@ public:
         volume->func.expose_callback = draw_knob;
         volume->func.value_changed_callback = volume_callback;
 
+        clip = add_button(w, "", 330, 150, 30, 30);
+        clip->scale.gravity = SOUTHWEST;
+        clip->parent_struct = (void*)this;
+        widget_get_png(clip, LDVAR(clip__png));
+        clip->flags |= HAS_TOOLTIP;
+        add_tooltip(clip, "Clip audio to loop marks");
+        clip->func.value_changed_callback = button_clip_callback;
+
         playbutton = add_image_toggle_button(w, "", 360, 150, 30, 30);
         playbutton->scale.gravity = SOUTHWEST;
         playbutton->parent_struct = (void*)this;
@@ -244,6 +252,7 @@ private:
     Widget_t *volume;
     Widget_t *lview;
     Widget_t *saveLoop;
+    Widget_t *clip;
 
     SupportedFormats supportedFormats;
     AudioFile pre_af;
@@ -254,6 +263,46 @@ private:
 
     bool is_loaded;
     std::string newLabel;
+
+/****************************************************************
+                    Sound File clipping
+****************************************************************/
+
+    // clip the audio buffer to match the loop marks
+    void clipToLoopMarks() {
+        if (!af.samples) return;
+        play = false;
+        ready = false;
+        uint32_t new_size = (loopPoint_r-loopPoint_l) * af.channels;
+        delete[] af.saveBuffer;
+        af.saveBuffer = nullptr;
+        af.saveBuffer = new float[new_size];
+        std::memset(af.saveBuffer, 0, new_size * sizeof(float));
+        for (uint32_t i = 0; i<new_size; i++) {
+            af.saveBuffer[i] = af.samples[i+loopPoint_l];
+        }
+        delete[] af.samples;
+        af.samples = nullptr;
+        af.samples =  new float[new_size];
+        std::memset(af.samples, 0, new_size * sizeof(float));
+        memcpy(af.samples, af.saveBuffer, new_size * sizeof(float));
+
+        af.samplesize = new_size / af.channels;
+        position = 0;
+        adj_set_max_value(wview->adj, (float)af.samplesize);
+        adj_set_state(loopMark_L->adj, 0.0);
+        loopPoint_l = 0;
+        adj_set_state(loopMark_R->adj,1.0);
+        loopPoint_r = af.samplesize;
+
+        delete[] af.saveBuffer;
+        af.saveBuffer = nullptr;
+        loadNew = true;
+        update_waveview(wview, af.samples, af.samplesize);
+        if (adj_get_value(playbutton->adj))
+             play = true;
+        ready = true;
+    }
 
 /****************************************************************
                     Sound File loading
@@ -486,6 +535,15 @@ private:
             #endif
             os_resize_window(self->w->app->dpy, self->w, self->w->width + x -2, self->w->height + y -2);
             expose_widget(self->w);
+        }
+    }
+
+    // clip
+    static void button_clip_callback(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        if (w->flags & HAS_POINTER && !*(int*)user_data){
+            self->clipToLoopMarks();
         }
     }
 
