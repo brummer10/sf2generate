@@ -112,6 +112,8 @@ all : check $(NAME)
 	fi
 
 debug : all
+	CXXFLAGS += -g
+	CFLAGS += -g
 
 -include $(DEPS)
 

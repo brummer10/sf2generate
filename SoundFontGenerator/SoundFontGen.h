@@ -130,8 +130,8 @@ public:
 
     // takes a audio file and convert it to mono 16 bit when needed and write it into a SoundFont (sf2)
     bool write_sf2(const std::string& filename, const std::string& sf2file,
-                    const std::string& name, uint8_t rootNote = 60, const uint8_t lowNote = 0,
-                    const uint8_t highNote = 127) {
+                            const std::string& name, uint8_t rootNote = 60,
+                            const uint16_t Chorus = 500, const uint16_t Reverb = 500 ) {
         if (!sample.load(filename)) {
             std::cerr << "Failed to read wav file or unsupported format!\n";
             return false;
@@ -139,28 +139,31 @@ public:
         loop_left = 0;
         loop_right = sample.data.size();
         rootKey = rootNote;
-        lowKey = lowNote;
-        highKey = lowNote;
+        chorus = Chorus;
+        reverb = Reverb;
         return write_sf2(sf2file, name);
     }
 
-    // takes a audio buffer as float*, clip the buffer for looping to the given size (start - end loop)
-    // and convert it to 16 bit and write it into a SoundFont (sf2)
+    // takes a audio float buffer as OneShoot instrument
+    // clip the buffer for looping to the given size (loop_l - loop_r)
+    // convert it to int16_t
+    // optional set the root Key to use, default is 60 (C4)
+    // write the SoundFont (sf2)
     bool generate_sf2(const float *samples, const uint32_t loop_l, const uint32_t loop_r,
-                    const uint32_t samplesize, const uint32_t samplerate, 
-                    const std::string& sf2file, const std::string& name, 
-                    const uint8_t rootNote = 60 , const uint8_t lowNote = 0,
-                    const uint8_t highNote = 127) {
+                    const uint32_t samplesize, const uint32_t samplerate,
+                    const std::string& sf2file, const std::string& name,
+                    const uint8_t rootNote = 60, const uint16_t Chorus = 500,
+                    const uint16_t Reverb = 500 ) {
 
         if (!sample.convert(samples, samplerate, samplesize, loop_l, loop_r)) {
-            std::cerr << "Failed to read wav file or unsupported format!\n";
+            std::cerr << "Failed to read audio buffer or unsupported format!\n";
             return false;
         }
         loop_left = loop_l;
         loop_right = loop_r;
         rootKey = rootNote;
-        lowKey = lowNote;
-        highKey = lowNote;
+        chorus = Chorus;
+        reverb = Reverb;
         return write_sf2(sf2file, name);
     }
 
@@ -169,8 +172,8 @@ public:
         loop_left = 0;
         loop_right = 0;
         rootKey = 60;
-        lowKey = 0;
-        highKey = 127;
+        chorus = 500;
+        reverb = 500;
     };
     ~SoundFontWriter(){};
 
@@ -186,8 +189,8 @@ private:
     uint32_t loop_left;
     uint32_t loop_right;
     uint8_t  rootKey;
-    uint8_t  lowKey;
-    uint8_t  highKey;
+    uint16_t chorus;
+    uint16_t reverb;
 
     // Buffer helpers for little-endian binary writing
     template<typename T>
@@ -328,7 +331,7 @@ private:
         // instrument 1 (Looped) uses igen records starting at index 2
         write<uint16_t>(ibag, 4); write<uint16_t>(ibag, 0);
         // terminator: points to igen index 4 (end)
-        write<uint16_t>(ibag, 9); write<uint16_t>(ibag, 0);
+        write<uint16_t>(ibag, 8); write<uint16_t>(ibag, 0);
         //assert(ibag.size() == 8 + 12);
         pdta_chunks.push_back(std::move(ibag));
     }
@@ -347,18 +350,18 @@ private:
         std::vector<uint8_t> igen;
         write_str(igen, "igen", 4); write<uint32_t>(igen, 4*9);
         // Instrument 0 (OneShot)
-        write<uint16_t>(igen, 15); write<uint16_t>(igen, 500);  // Chorus send 50%
-        write<uint16_t>(igen, 16); write<uint16_t>(igen, 500);  // Reverb send 50%
-        write<uint16_t>(igen, 54); write<uint16_t>(igen, 0); // SampleModes = OneShoot
-        write<uint16_t>(igen, 53); write<uint16_t>(igen, 0); // SampleID, 0
+        write<uint16_t>(igen, 15); write<uint16_t>(igen, chorus);  // Chorus send 50%
+        write<uint16_t>(igen, 16); write<uint16_t>(igen, reverb);  // Reverb send 50%
+        write<uint16_t>(igen, 54); write<uint16_t>(igen, 0);    // SampleModes = OneShoot
+        write<uint16_t>(igen, 53); write<uint16_t>(igen, 0);    // SampleID, 0
         // Instrument 1 (Looped)
-        write<uint16_t>(igen, 15); write<uint16_t>(igen, 500);  // Chorus send 50%
-        write<uint16_t>(igen, 16); write<uint16_t>(igen, 500);  // Reverb send 50%
-        write<uint16_t>(igen, 54); write<uint16_t>(igen, 1); // SampleModes = Standard Loop
-        write<uint16_t>(igen, 53); write<uint16_t>(igen, 1); // SampleID, 1
+        write<uint16_t>(igen, 15); write<uint16_t>(igen, chorus);  // Chorus send 50%
+        write<uint16_t>(igen, 16); write<uint16_t>(igen, reverb);  // Reverb send 50%
+        write<uint16_t>(igen, 54); write<uint16_t>(igen, 1);    // SampleModes = Standard Loop
+        write<uint16_t>(igen, 53); write<uint16_t>(igen, 1);    // SampleID, 1
         // global terminator
         write<uint16_t>(igen, 0); write<uint16_t>(igen, 0);
-        //assert(igen.size() == 8 + 20);
+        //assert(igen.size() == 8 + 44);
         pdta_chunks.push_back(std::move(igen));
     }
 

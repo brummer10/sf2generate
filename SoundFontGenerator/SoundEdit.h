@@ -52,9 +52,17 @@ public:
     uint32_t loopPoint_r;
     uint32_t frameSize;
 
+    uint16_t chorus;
+    uint16_t reverb;
+    uint8_t rootkey;
+
     float gain;
 
     std::string filename;
+    std::string lname;
+    std::string info;
+    std::string info1;
+    std::string info2;
 
     bool loadNew;
     bool play;
@@ -74,6 +82,9 @@ public:
         stop = false;
         ready = true;
         stream = nullptr;
+        rootkey = 60;
+        chorus = 500;
+        reverb = 500;
     };
 
     ~SoundEditUi() {
@@ -89,7 +100,7 @@ public:
         pa.stop();
         #if defined(__linux__) || defined(__FreeBSD__) || \
             defined(__NetBSD__) || defined(__OpenBSD__)
-        quit(w);
+        quit(w_top);
         #else
         main_quit(w->app);
         #endif
@@ -194,12 +205,13 @@ public:
         add_tooltip(filebutton, "Load audio file");
         filebutton->func.user_callback = dialog_response;
 
-        saveLoop = add_xsave_file_button(w, 60, 150, 30, 30, getenv("HOME") ? getenv("HOME") : PATH_SEPARATOR, ".sf2");
-        saveLoop->parent_struct = (void*)this;
-        saveLoop->scale.gravity = SOUTHEAST;
-        saveLoop->flags |= HAS_TOOLTIP;
-        add_tooltip(saveLoop, "Save as Sound Font (sf2)");
-        saveLoop->func.user_callback = write_soundfile;
+        e_save = add_button(w, "", 60, 150, 30, 30);
+        e_save->parent_struct = (void*)this;
+        widget_get_png(e_save, LDVAR(save__png));
+        e_save->scale.gravity = SOUTHEAST;
+        e_save->flags |= HAS_TOOLTIP;
+        add_tooltip(e_save, "Save settings to sf2");
+        e_save->func.value_changed_callback = button_esave_callback;
 
         volume = add_knob(w, "dB",265,150,28,28);
         volume->parent_struct = (void*)this;
@@ -232,13 +244,69 @@ public:
         w_quit->scale.gravity = SOUTHWEST;
         w_quit->flags |= HAS_TOOLTIP;
         add_tooltip(w_quit, "Exit");
-         w_quit->func.value_changed_callback = button_quit_callback;
+        w_quit->func.value_changed_callback = button_quit_callback;
 
         widget_show_all(w_top);
 
         pa.startTimeout(60);
         pa.set<SoundEditUi, &SoundEditUi::updateUI>(this);
 
+    }
+
+    void createExportWindow() {
+        exportWindow = create_window(w_top->app, os_get_root_window(w_top->app, IS_WINDOW), 0, 0, 440, 190);
+        os_set_transient_for_hint(w_top, exportWindow);
+        widget_set_title(exportWindow, "sf2generator-settings");
+        info = "Export Settings: ";
+        info1 = " SampleRate: " + std::to_string(jack_sr) + "Hz " + " SampleSize: " + std::to_string(af.samplesize);
+        info2 = " LoopSize: from " + std::to_string(loopPoint_l) + " to " + std::to_string(loopPoint_r);
+        exportWindow->parent_struct = (void*)this;
+       
+        exportWindow->func.expose_callback = draw_ewindow;
+
+        add_label(exportWindow, _("Root Key Note     Chorus     Reverb     Save     Chancel"), 10, 80, 300, 30);
+        rootKey = add_combobox(exportWindow, "", 20, 120, 70, 40);
+        rootKey->scale.gravity = SOUTHWEST;
+        rootKey->parent_struct = (void*)this;
+        
+        combobox_add_numeric_entrys(rootKey, 0, 127);
+        combobox_set_active_entry(rootKey, 60);
+        rootKey->func.value_changed_callback = set_root_key;
+
+        Chorus = add_knob(exportWindow, "Chorus", 120, 120, 40, 40);
+        Chorus->parent_struct = (void*)this;
+        Chorus->scale.gravity = SOUTHWEST;
+        Chorus->flags |= HAS_TOOLTIP;
+        add_tooltip(Chorus, "Chorus (%)");
+        set_adjustment(Chorus->adj, 50.0, 50.0, 0.0, 100.0, 1.0, CL_CONTINUOS);
+        Chorus->func.expose_callback = draw_knob;
+        Chorus->func.value_changed_callback = set_chorus;
+
+        Reverb = add_knob(exportWindow, "Reverb", 170, 120, 40, 40);
+        Reverb->parent_struct = (void*)this;
+        Reverb->scale.gravity = SOUTHWEST;
+        Reverb->flags |= HAS_TOOLTIP;
+        add_tooltip(Reverb, "Reverb (%)");
+        set_adjustment(Reverb->adj, 50.0, 50.0, 0.0, 100.0, 1.0, CL_CONTINUOS);
+        Reverb->func.expose_callback = draw_knob;
+        Reverb->func.value_changed_callback = set_reverb;
+
+        saveLoop = add_xsave_file_button(exportWindow, 220, 120, 40, 40, getenv("HOME") ? getenv("HOME") : PATH_SEPARATOR, ".sf2");
+        saveLoop->parent_struct = (void*)this;
+        saveLoop->scale.gravity = SOUTHWEST;
+        saveLoop->flags |= HAS_TOOLTIP;
+        add_tooltip(saveLoop, "Save as Sound Font (sf2)");
+        saveLoop->func.user_callback = write_soundfile;
+
+        e_quit = add_button(exportWindow, "", 270, 120, 40, 40);
+        e_quit->parent_struct = (void*)this;
+        widget_get_png(e_quit, LDVAR(quit_png));
+        e_quit->scale.gravity = SOUTHWEST;
+        e_quit->flags |= HAS_TOOLTIP;
+        add_tooltip(e_quit, "Chancel");
+        e_quit->func.value_changed_callback = button_equit_callback;
+
+        widget_show_all(exportWindow);
     }
 
 private:
@@ -253,6 +321,13 @@ private:
     Widget_t *lview;
     Widget_t *saveLoop;
     Widget_t *clip;
+
+    Widget_t *exportWindow;
+    Widget_t *rootKey;
+    Widget_t *Chorus;
+    Widget_t *Reverb;
+    Widget_t *e_save;
+    Widget_t *e_quit;
 
     SupportedFormats supportedFormats;
     AudioFile pre_af;
@@ -364,7 +439,10 @@ private:
             SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
             if (!self->af.samples) return;
             std::string lname(*(const char**)user_data);
-            self->af.savesf2(lname, self->loopPoint_l, self->loopPoint_r, self->jack_sr, self->gain);
+            self->lname = lname;
+           // destroy_widget(self->exportWindow, self->w->app);
+            self->af.savesf2(self->lname, self->loopPoint_l, self->loopPoint_r,
+                self->jack_sr, self->gain, self->rootkey, self->chorus, self->reverb);
         }
     }
 
@@ -437,6 +515,24 @@ private:
         }
     }
 
+    // equit
+    static void button_esave_callback(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        if (w->flags & HAS_POINTER && !*(int*)user_data){
+            self->createExportWindow();
+        }
+    }
+
+    // equit
+    static void button_equit_callback(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        if (w->flags & HAS_POINTER && !*(int*)user_data){
+            destroy_widget(self->exportWindow, self->w->app);
+        }
+    }
+
     static void fxdialog_response(void *w_, void* user_data) {
         Widget_t *w = (Widget_t*)w_;
         FileButton *filebutton = (FileButton *)w->private_struct;
@@ -455,6 +551,7 @@ private:
         adj_set_value(w->adj,0.0);
         if (adj_get_value(self->playbutton->adj))
              self->play = true;
+        destroy_widget(self->exportWindow, self->w->app);
     }
 
     static void fxbutton_callback(void *w_, void* user_data) {
@@ -570,6 +667,7 @@ private:
         int width = self->w_top->width-40;
         os_move_window(self->w->app->dpy, w, 15+ (width * st), 2);
         self->loopPoint_l = lp;
+        //if(self->af.samples) fprintf(stderr, "left %f\n", self->af.samples[self->loopPoint_l]);
     }
 
     // set left loop point by mouse wheel
@@ -619,6 +717,7 @@ private:
         int width = self->w_top->width-40;
         os_move_window(self->w->app->dpy, w, 15 + (width * st), 2);
         self->loopPoint_r = lp;
+        //if(self->af.samples) fprintf(stderr, "right %f\n", self->af.samples[self->loopPoint_r]);
     }
 
     // set right loop point by mouse wheel
@@ -690,6 +789,27 @@ private:
         Widget_t *w = (Widget_t*)w_;
         SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
         self->gain = std::pow(1e+01, 0.05 * adj_get_value(w->adj));
+    }
+
+    // Root Key 
+    static void set_root_key(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        self->rootkey = static_cast<uint8_t>(adj_get_value(w->adj));
+    }
+
+     // Chorus
+    static void set_chorus(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        self->chorus = static_cast<uint16_t>(adj_get_value(w->adj) * 10);
+    }
+
+   // Reverb
+    static void set_reverb(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        self->reverb = static_cast<uint16_t>(adj_get_value(w->adj) * 10);
     }
 
 /****************************************************************
@@ -824,7 +944,7 @@ private:
             for (int i=0;i<width-4;i++) {
                 cairo_move_to(cri,i+2,pos);
                 float w = wave_view->wave[int(c+(i*af.channels)*step)];
-                cairo_line_to(cri, i+2,(float)(pos)+ (-w * lstep));
+                //cairo_line_to(cri, i+2,(float)(pos)+ (-w * lstep));
                 cairo_line_to(cri, i+2,(float)(pos)+ (w * lstep));
             }
             pos += half_height_t;
@@ -941,6 +1061,24 @@ private:
         if (!metrics.visible) return;
         use_bg_color_scheme(w, NORMAL_);
         cairo_paint (w->crb);
+    }
+
+    static void draw_ewindow(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        Metrics_t metrics;
+        os_get_window_metrics(w, &metrics);
+        if (!metrics.visible) return;
+        use_bg_color_scheme(w, NORMAL_);
+        cairo_paint (w->crb);
+        use_text_color_scheme(w, NORMAL_);
+        cairo_set_font_size (w->crb, w->app->normal_font/w->scale.ascale);
+        cairo_move_to (w->crb, 20, 40);
+        cairo_show_text(w->crb, self->info.c_str());
+        cairo_move_to (w->crb, 20, 60);
+        cairo_show_text(w->crb, self->info1.c_str());
+        cairo_move_to (w->crb, 20, 80);
+        cairo_show_text(w->crb, self->info2.c_str());
     }
 
 /****************************************************************
