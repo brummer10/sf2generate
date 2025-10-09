@@ -110,16 +110,61 @@ int main(int argc, char *argv[]){
         if ((cmd.compare("--help") == 0) || (cmd.compare("-h") == 0)) {
             std::cout << "Minimal SF2 (SoundFont 2) writer for a single mono WAV file." << std::endl;
             std::cout << "  Usage: " << argv[0] << " input.wav output.sf2\n";
+            std::cout << "  optional additional arguments been:\n";
+            std::cout << "  RootKey Chorus Reverb\n";
+            std::cout << "  RootKey Chorus Reverb\n";
+            std::cout << "  given as value in that order\n";
+            std::cout << "  RootKey in the Range from 0 to 127\n";
+            std::cout << "  Chorus and reverb in the range from 0 to 100\n";
             return 0;
         }
     }
 
-    if (argc == 3) {
-        if (!ui.af.swf.write_sf2(argv[1], argv[2], "Sample")) {
-            std::cerr << "Failed to write sf2!\n";
-            return 1;
+    if (argc > 2) {
+        switch (argc) {
+            case (3):
+            {
+                if (!ui.af.swf.write_sf2(argv[1], argv[2], "Sample")) {
+                    std::cerr << "Failed to write sf2!\n";
+                    return 1;
+                }
+                std::cout << "SF2 created: " << argv[2] << "\n";
+                break;
+            }
+            case (4):
+            {
+                if (!ui.af.swf.write_sf2(argv[1], argv[2], "Sample",
+                                            (uint8_t)atoi(argv[3]))) {
+                    std::cerr << "Failed to write sf2!\n";
+                    return 1;
+                }
+                std::cout << "SF2 created: " << argv[2] << "\n";
+                break;
+            }
+            case (5):
+            {
+                if (!ui.af.swf.write_sf2(argv[1], argv[2], "Sample", 
+                        (uint8_t)atoi(argv[3]), (uint16_t)atoi(argv[4])*10)) {
+                    std::cerr << "Failed to write sf2!\n";
+                    return 1;
+                }
+                std::cout << "SF2 created: " << argv[2] << "\n";
+                break;
+            }
+            case (6):
+            {
+                if (!ui.af.swf.write_sf2(argv[1], argv[2], "Sample",
+                        (uint8_t)atoi(argv[3]), (uint16_t)atoi(argv[4])*10,
+                                                (uint16_t)atoi(argv[5])*10)) {
+                    std::cerr << "Failed to write sf2!\n";
+                    return 1;
+                }
+                std::cout << "SF2 created: " << argv[2] << "\n";
+                break;
+            }
+            default:
+            break;
         }
-        std::cout << "SF2 created: " << argv[2] << "\n";
         return 0;
     }
 

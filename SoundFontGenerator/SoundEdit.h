@@ -258,13 +258,14 @@ public:
         os_set_transient_for_hint(w_top, exportWindow);
         widget_set_title(exportWindow, "sf2generator-settings");
         info = "Export Settings: ";
-        info1 = " SampleRate: " + std::to_string(jack_sr) + "Hz " + " SampleSize: " + std::to_string(af.samplesize);
-        info2 = " LoopSize: from " + std::to_string(loopPoint_l) + " to " + std::to_string(loopPoint_r);
+        info1 = "  SampleRate: " + std::to_string(jack_sr) + "Hz " + " SampleSize: " + std::to_string(af.samplesize);
+        info2 = "  LoopSize: from " + std::to_string(loopPoint_l) + " to " + std::to_string(loopPoint_r);
         exportWindow->parent_struct = (void*)this;
        
         exportWindow->func.expose_callback = draw_ewindow;
 
-        add_label(exportWindow, _("Root Key Note     Chorus     Reverb     Save     Chancel"), 10, 80, 300, 30);
+        Widget_t * tmp = add_label(exportWindow, _("Root Key Note       Chorus     Reverb    Save     Chancel"), 10, 85, 310, 30);
+        tmp->scale.gravity = SOUTHWEST;
         rootKey = add_combobox(exportWindow, "", 20, 120, 70, 40);
         rootKey->scale.gravity = SOUTHWEST;
         rootKey->parent_struct = (void*)this;
@@ -1072,12 +1073,12 @@ private:
         use_bg_color_scheme(w, NORMAL_);
         cairo_paint (w->crb);
         use_text_color_scheme(w, NORMAL_);
-        cairo_set_font_size (w->crb, w->app->normal_font/w->scale.ascale);
-        cairo_move_to (w->crb, 20, 40);
+        cairo_set_font_size (w->crb, w->app->big_font/w->scale.ascale);
+        cairo_move_to (w->crb, 10, 40);
         cairo_show_text(w->crb, self->info.c_str());
-        cairo_move_to (w->crb, 20, 60);
+        cairo_move_to (w->crb, 10, 60);
         cairo_show_text(w->crb, self->info1.c_str());
-        cairo_move_to (w->crb, 20, 80);
+        cairo_move_to (w->crb, 10, 80);
         cairo_show_text(w->crb, self->info2.c_str());
     }
 
