@@ -1,7 +1,7 @@
 # sf2generate
 
 A minimal SF2 (SoundFont 2) writer for a single audio file.
-Note, regardless ow many channels the file have, only the first one will be used.
+Note, regardless how many channels the file have, only the first one will be used.
 It could act as command-line application like the following
 
 ```shell
@@ -21,6 +21,10 @@ Default settings been
  60 50 50
 ```
 ## Features
+
+<p align="center">
+    <img src="https://github.com/brummer10/sf2generate/blob/main/sf2generate.png?raw=true" />
+</p>
 
 When starting without command-line arguments it will start a GUI which 
 allow you to select a audio file,
