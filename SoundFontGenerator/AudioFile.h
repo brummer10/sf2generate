@@ -105,7 +105,7 @@ public:
     // save from buffer to sf2 file
     void savesf2(std::string name, const uint32_t from, const uint32_t to,
                         const uint32_t SampleRate, const float gain, const uint8_t rootkey,
-                        const uint16_t chorus, const uint16_t reverb) {
+                        const uint16_t chorus, const uint16_t reverb, const int16_t pitchCorrection) {
         delete[] saveBuffer;
         saveBuffer = nullptr;
         saveBuffer = new float[samplesize];
@@ -114,7 +114,8 @@ public:
             saveBuffer[i] = samples[i*channels] * gain;
         }
         std::string sf2name = name.substr(0,name.find_last_of('.'))+".sf2";
-        swf.generate_sf2(saveBuffer, from, to, samplesize, SampleRate, sf2name, "Sample", rootkey, chorus, reverb);
+        swf.generate_sf2(saveBuffer, from, to, samplesize, SampleRate, sf2name,
+                        "Sample", rootkey, chorus, reverb, pitchCorrection);
     }
 
 };

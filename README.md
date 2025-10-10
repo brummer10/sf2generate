@@ -28,10 +28,19 @@ Default settings been
 
 When starting without command-line arguments it will start a GUI which 
 allow you to select a audio file,
-clip it to the partial range to be used for the OneShoot Instrument,
-set the loop points to be used for the Looped Instrument,
-set the base Note and 
-the values in percent for Chorus and Reverb. 
+clip it to the range to be used for the OneShoot Instrument
+and set the loop points to be used for the Looped Instrument.
+
+<p align="center">
+    <img src="https://github.com/brummer10/sf2generate/blob/main/sf2generate-settings.png?raw=true" />
+</p>
+
+A pitch detector will then calculate the RootKey and
+the Pitch correction to be used in the SoundFont.
+You could still change that to your needs, if you wish.
+
+As well you could set the values in percent for Chorus and Reverb.
+
 When done, the SoundFont could be generated and saved.
 
 That's it, not more, not less.
@@ -42,6 +51,7 @@ The GUI is created with libxputty.
 ## Dependencies
 
 - libsndfile1-dev
+- libfftw3-dev
 - portaudio19-dev
 - libcairo2-dev
 - libx11-dev

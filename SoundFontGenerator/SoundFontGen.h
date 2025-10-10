@@ -131,7 +131,8 @@ public:
     // takes a audio file and convert it to mono 16 bit when needed and write it into a SoundFont (sf2)
     bool write_sf2(const std::string& filename, const std::string& sf2file,
                             const std::string& name, uint8_t rootNote = 60,
-                            const uint16_t Chorus = 500, const uint16_t Reverb = 500 ) {
+                            const uint16_t Chorus = 500, const uint16_t Reverb = 500,
+                            const int16_t pitchCorrection = 0) {
         if (!sample.load(filename)) {
             std::cerr << "Failed to read wav file or unsupported format!\n";
             return false;
@@ -141,6 +142,7 @@ public:
         rootKey = rootNote;
         chorus = Chorus;
         reverb = Reverb;
+        chPitchCorrection = pitchCorrection;
         return write_sf2(sf2file, name);
     }
 
@@ -153,7 +155,7 @@ public:
                     const uint32_t samplesize, const uint32_t samplerate,
                     const std::string& sf2file, const std::string& name,
                     const uint8_t rootNote = 60, const uint16_t Chorus = 500,
-                    const uint16_t Reverb = 500 ) {
+                    const uint16_t Reverb = 500, const int16_t pitchCorrection = 0) {
 
         if (!sample.convert(samples, samplerate, samplesize, loop_l, loop_r)) {
             std::cerr << "Failed to read audio buffer or unsupported format!\n";
@@ -164,6 +166,7 @@ public:
         rootKey = rootNote;
         chorus = Chorus;
         reverb = Reverb;
+        chPitchCorrection = pitchCorrection;
         return write_sf2(sf2file, name);
     }
 
@@ -174,6 +177,7 @@ public:
         rootKey = 60;
         chorus = 500;
         reverb = 500;
+        chPitchCorrection = 0;
     };
     ~SoundFontWriter(){};
 
@@ -191,6 +195,7 @@ private:
     uint8_t  rootKey;
     uint16_t chorus;
     uint16_t reverb;
+    int16_t chPitchCorrection;
 
     // Buffer helpers for little-endian binary writing
     template<typename T>
@@ -377,7 +382,7 @@ private:
         write<uint32_t>(shdr, 16 + (uint32_t)sample.data.size()-1);   // dwEndLoop
         write<uint32_t>(shdr, sample.sampleRate);                     // dwSampleRate
         write<uint8_t>(shdr, rootKey);                                // byOriginalPitch
-        write<int8_t>(shdr, 0);                                       // chPitchCorrection
+        write<int8_t>(shdr, chPitchCorrection);                       // chPitchCorrection
         write<uint16_t>(shdr, 0);                                     // wSampleLink
         write<uint16_t>(shdr, 1);                                     // sfSampleType (mono)
         // Real sample header (46 bytes)
@@ -388,7 +393,7 @@ private:
         write<uint32_t>(shdr, 32 + (uint32_t)sample.data.size() + sample.loop_data.size()-1);    // dwEndLoop
         write<uint32_t>(shdr, sample.sampleRate);                     // dwSampleRate
         write<uint8_t>(shdr, rootKey);                                // byOriginalPitch
-        write<int8_t>(shdr, 0);                                       // chPitchCorrection
+        write<int8_t>(shdr, chPitchCorrection);                       // chPitchCorrection
         write<uint16_t>(shdr, 0);                                     // wSampleLink
         write<uint16_t>(shdr, 1);                                     // sfSampleType (mono)
         // Terminal sample header (46 bytes)

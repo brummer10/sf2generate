@@ -28,6 +28,7 @@
 #include "xwidgets.h"
 #include "xfile-dialog.h"
 #include "AudioFile.h"
+#include "PitchTracker.h"
 
 
 #pragma once
@@ -45,6 +46,7 @@ public:
     Widget_t *w;
     ParallelThread pa;
     AudioFile af;
+    PitchTracker pt;
     
     uint32_t jack_sr;
     uint32_t position;
@@ -56,6 +58,8 @@ public:
     uint16_t reverb;
     uint8_t rootkey;
 
+    int16_t pitchCorrection;
+
     float gain;
 
     std::string filename;
@@ -63,13 +67,13 @@ public:
     std::string info;
     std::string info1;
     std::string info2;
+    std::string info3;
 
     bool loadNew;
     bool play;
-    bool stop;
     bool ready;
 
-    SoundEditUi() : af(), pre_af() {
+    SoundEditUi() : af() {
         jack_sr = 0;
         position = 0;
         loopPoint_l = 0;
@@ -79,12 +83,13 @@ public:
         is_loaded = false;
         loadNew = false;
         play = false;
-        stop = false;
         ready = true;
         stream = nullptr;
+        pitchCorrection = 0;
         rootkey = 60;
         chorus = 500;
         reverb = 500;
+        generateKeys();
     };
 
     ~SoundEditUi() {
@@ -257,24 +262,42 @@ public:
         exportWindow = create_window(w_top->app, os_get_root_window(w_top->app, IS_WINDOW), 0, 0, 440, 190);
         os_set_transient_for_hint(w_top, exportWindow);
         widget_set_title(exportWindow, "sf2generator-settings");
-        info = "Export Settings: ";
-        info1 = "  SampleRate: " + std::to_string(jack_sr) + "Hz " + " SampleSize: " + std::to_string(af.samplesize);
+
+        float freq = 0.0;
+        pitchCorrection = 0;
+        if (af.samples) rootkey = pt.getPitch(af.samples, af.samplesize , (float)jack_sr, &pitchCorrection, &freq);
+        info =  "  Root Key:  " + std::to_string(rootkey) + " Freq:  " + std::to_string((int)freq) + " Hz";
+        info3 = "  PitchCorrection:  " + std::to_string(pitchCorrection) + " Cent";
+        info1 = "  SampleRate:  " + std::to_string(jack_sr) + " Hz " + " SampleSize: " + std::to_string(af.samplesize);
         info2 = "  LoopSize: from " + std::to_string(loopPoint_l) + " to " + std::to_string(loopPoint_r);
+
         exportWindow->parent_struct = (void*)this;
-       
         exportWindow->func.expose_callback = draw_ewindow;
 
-        Widget_t * tmp = add_label(exportWindow, _("Root Key Note       Chorus     Reverb    Save     Chancel"), 10, 85, 310, 30);
+        Widget_t * tmp = add_label(exportWindow, _("Root Key Note   PitchCorrection    Chorus         Reverb      Save     Chancel"), 10, 105, 420, 30);
         tmp->scale.gravity = SOUTHWEST;
-        rootKey = add_combobox(exportWindow, "", 20, 120, 70, 40);
+
+        rootKey = add_combobox(exportWindow, "", 20, 140, 70, 40);
         rootKey->scale.gravity = SOUTHWEST;
         rootKey->parent_struct = (void*)this;
-        
-        combobox_add_numeric_entrys(rootKey, 0, 127);
-        combobox_set_active_entry(rootKey, 60);
+        for (auto & element : keys) {
+            combobox_add_entry(rootKey, element.c_str());
+        }
+        combobox_set_menu_size(rootKey, 12);
+        combobox_set_active_entry(rootKey, rootkey);
         rootKey->func.value_changed_callback = set_root_key;
 
-        Chorus = add_knob(exportWindow, "Chorus", 120, 120, 40, 40);
+        PitchCorrection = add_knob(exportWindow, "PitchCorrection", 120, 140, 40, 40);
+        PitchCorrection->parent_struct = (void*)this;
+        PitchCorrection->scale.gravity = SOUTHWEST;
+        PitchCorrection->flags |= HAS_TOOLTIP;
+        add_tooltip(PitchCorrection, "PitchCorrection (%)");
+        set_adjustment(PitchCorrection->adj, 0.0, 0.0, -50.0, 50.0, 1.0, CL_CONTINUOS);
+        adj_set_value(PitchCorrection->adj, (float)pitchCorrection);
+        PitchCorrection->func.expose_callback = draw_knob;
+        PitchCorrection->func.value_changed_callback = set_pitch;
+
+        Chorus = add_knob(exportWindow, "Chorus", 200, 140, 40, 40);
         Chorus->parent_struct = (void*)this;
         Chorus->scale.gravity = SOUTHWEST;
         Chorus->flags |= HAS_TOOLTIP;
@@ -283,7 +306,7 @@ public:
         Chorus->func.expose_callback = draw_knob;
         Chorus->func.value_changed_callback = set_chorus;
 
-        Reverb = add_knob(exportWindow, "Reverb", 170, 120, 40, 40);
+        Reverb = add_knob(exportWindow, "Reverb", 275, 140, 40, 40);
         Reverb->parent_struct = (void*)this;
         Reverb->scale.gravity = SOUTHWEST;
         Reverb->flags |= HAS_TOOLTIP;
@@ -292,14 +315,14 @@ public:
         Reverb->func.expose_callback = draw_knob;
         Reverb->func.value_changed_callback = set_reverb;
 
-        saveLoop = add_xsave_file_button(exportWindow, 220, 120, 40, 40, getenv("HOME") ? getenv("HOME") : PATH_SEPARATOR, ".sf2");
+        saveLoop = add_xsave_file_button(exportWindow, 330, 140, 40, 40, getenv("HOME") ? getenv("HOME") : PATH_SEPARATOR, ".sf2");
         saveLoop->parent_struct = (void*)this;
         saveLoop->scale.gravity = SOUTHWEST;
         saveLoop->flags |= HAS_TOOLTIP;
         add_tooltip(saveLoop, "Save as Sound Font (sf2)");
         saveLoop->func.user_callback = write_soundfile;
 
-        e_quit = add_button(exportWindow, "", 270, 120, 40, 40);
+        e_quit = add_button(exportWindow, "", 380, 140, 40, 40);
         e_quit->parent_struct = (void*)this;
         widget_get_png(e_quit, LDVAR(quit_png));
         e_quit->scale.gravity = SOUTHWEST;
@@ -322,6 +345,7 @@ private:
     Widget_t *lview;
     Widget_t *saveLoop;
     Widget_t *clip;
+    Widget_t *PitchCorrection;
 
     Widget_t *exportWindow;
     Widget_t *rootKey;
@@ -331,7 +355,6 @@ private:
     Widget_t *e_quit;
 
     SupportedFormats supportedFormats;
-    AudioFile pre_af;
 
     PaStream* stream;
 
@@ -339,6 +362,7 @@ private:
 
     bool is_loaded;
     std::string newLabel;
+    std::vector<std::string> keys;
 
 /****************************************************************
                     Sound File clipping
@@ -443,7 +467,8 @@ private:
             self->lname = lname;
            // destroy_widget(self->exportWindow, self->w->app);
             self->af.savesf2(self->lname, self->loopPoint_l, self->loopPoint_r,
-                self->jack_sr, self->gain, self->rootkey, self->chorus, self->reverb);
+                            self->jack_sr, self->gain, self->rootkey,
+                            self->chorus, self->reverb, self->pitchCorrection);
         }
     }
 
@@ -468,6 +493,29 @@ private:
                 }
                 dndfile = strtok(NULL, "\r\n");
             }
+        }
+    }
+
+/****************************************************************
+            generate Note Key table for combobox
+****************************************************************/
+
+    void generateKeys() {
+        std::vector<std::string> note_sharp = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+        std::vector<std::string> octave = {"-1", "0","1","2","3","4","5","6", "7", "8", "9"};
+
+        size_t o = 0;
+        int j = 0;
+        int k = 0;
+        for (int i = 0; i < 128; i++) {
+            std::string key = *(note_sharp.begin() + o) + *(octave.begin() + j);
+            keys.push_back(key);
+            if (i > k+10) {
+                k = i+1;
+                j++;
+            }
+            o++;
+            if (o>=note_sharp.size()) o=0;
         }
     }
 
@@ -698,7 +746,7 @@ private:
         float st =  (float)( (float)(pos-15.0)/(float)width);
         uint32_t lp = (self->af.samplesize) * st;
         if (lp > self->position) {
-            lp = self->position;
+            self->position = lp;
             st = max(0.0, min(1.0, (float)((float)self->position/(float)self->af.samplesize)));
         }
         adj_set_state(w->adj, st);
@@ -797,6 +845,13 @@ private:
         Widget_t *w = (Widget_t*)w_;
         SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
         self->rootkey = static_cast<uint8_t>(adj_get_value(w->adj));
+    }
+
+     // Chorus
+    static void set_pitch(void *w_, void* user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        SoundEditUi *self = static_cast<SoundEditUi*>(w->parent_struct);
+        self->chorus = static_cast<int16_t>(adj_get_value(w->adj) * 10);
     }
 
      // Chorus
@@ -1077,8 +1132,10 @@ private:
         cairo_move_to (w->crb, 10, 40);
         cairo_show_text(w->crb, self->info.c_str());
         cairo_move_to (w->crb, 10, 60);
-        cairo_show_text(w->crb, self->info1.c_str());
+        cairo_show_text(w->crb, self->info3.c_str());
         cairo_move_to (w->crb, 10, 80);
+        cairo_show_text(w->crb, self->info1.c_str());
+        cairo_move_to (w->crb, 10, 100);
         cairo_show_text(w->crb, self->info2.c_str());
     }
 
