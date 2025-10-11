@@ -25,10 +25,11 @@
 #include <cstdint>
 
 #include "SupportedFormats.h"
-#include "xwidgets.h"
-#include "xfile-dialog.h"
 #include "AudioFile.h"
 #include "PitchTracker.h"
+
+#include "xwidgets.h"
+#include "xfile-dialog.h"
 
 
 #pragma once
