@@ -64,6 +64,7 @@ public:
 
     std::string filename;
     std::string lname;
+    std::string info0;
     std::string info;
     std::string info1;
     std::string info2;
@@ -265,16 +266,20 @@ public:
 
         float freq = 0.0;
         pitchCorrection = 0;
-        if (af.samples) rootkey = pt.getPitch(af.samples, af.samplesize , (float)jack_sr, &pitchCorrection, &freq);
-        info =  "  Root Key:  " + std::to_string(rootkey) + " Freq:  " + std::to_string((int)freq) + " Hz";
+        if (af.samples) rootkey = pt.getPitch(af.samples, af.samplesize , af.channels, (float)jack_sr, &pitchCorrection, &freq);
+        char s[10];
+        snprintf(s, 10, "%.2f Hz", freq);
+        std::string fr = s;
+        info0 = "  Frequency:  " + fr + "  SampleRate:  " + std::to_string(jack_sr) + " Hz ";
+        info =  "  Root Key:  " + std::to_string(rootkey);
         info3 = "  PitchCorrection:  " + std::to_string(pitchCorrection) + " Cent";
-        info1 = "  SampleRate:  " + std::to_string(jack_sr) + " Hz " + " SampleSize: " + std::to_string(af.samplesize);
+        info1 = "  SampleSize: " + std::to_string(af.samplesize);
         info2 = "  LoopSize: from " + std::to_string(loopPoint_l) + " to " + std::to_string(loopPoint_r);
 
         exportWindow->parent_struct = (void*)this;
         exportWindow->func.expose_callback = draw_ewindow;
 
-        Widget_t * tmp = add_label(exportWindow, _("Root Key Note   PitchCorrection    Chorus         Reverb      Save     Chancel"), 10, 105, 420, 30);
+        Widget_t * tmp = add_label(exportWindow, _("Root Key Note      PitchCorr.     Chorus          Reverb           Save     Chancel"), 10, 105, 420, 30);
         tmp->scale.gravity = SOUTHWEST;
 
         rootKey = add_combobox(exportWindow, "", 20, 140, 70, 40);
@@ -291,13 +296,13 @@ public:
         PitchCorrection->parent_struct = (void*)this;
         PitchCorrection->scale.gravity = SOUTHWEST;
         PitchCorrection->flags |= HAS_TOOLTIP;
-        add_tooltip(PitchCorrection, "PitchCorrection (%)");
+        add_tooltip(PitchCorrection, "PitchCorrection (Cent)");
         set_adjustment(PitchCorrection->adj, 0.0, 0.0, -50.0, 50.0, 1.0, CL_CONTINUOS);
         adj_set_value(PitchCorrection->adj, (float)pitchCorrection);
         PitchCorrection->func.expose_callback = draw_knob;
         PitchCorrection->func.value_changed_callback = set_pitch;
 
-        Chorus = add_knob(exportWindow, "Chorus", 200, 140, 40, 40);
+        Chorus = add_knob(exportWindow, "Chorus", 190, 140, 40, 40);
         Chorus->parent_struct = (void*)this;
         Chorus->scale.gravity = SOUTHWEST;
         Chorus->flags |= HAS_TOOLTIP;
@@ -306,7 +311,7 @@ public:
         Chorus->func.expose_callback = draw_knob;
         Chorus->func.value_changed_callback = set_chorus;
 
-        Reverb = add_knob(exportWindow, "Reverb", 275, 140, 40, 40);
+        Reverb = add_knob(exportWindow, "Reverb", 260, 140, 40, 40);
         Reverb->parent_struct = (void*)this;
         Reverb->scale.gravity = SOUTHWEST;
         Reverb->flags |= HAS_TOOLTIP;
@@ -1129,6 +1134,8 @@ private:
         cairo_paint (w->crb);
         use_text_color_scheme(w, NORMAL_);
         cairo_set_font_size (w->crb, w->app->big_font/w->scale.ascale);
+        cairo_move_to (w->crb, 10, 20);
+        cairo_show_text(w->crb, self->info0.c_str());
         cairo_move_to (w->crb, 10, 40);
         cairo_show_text(w->crb, self->info.c_str());
         cairo_move_to (w->crb, 10, 60);

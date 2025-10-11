@@ -7,26 +7,27 @@ It could act as command-line application like the following
 ```shell
 sf2generate input.wav output.sf2 
 ```
+A pitch detector will calculate the RootKey and
+the Pitch correction to be used in the SoundFont.
+
+Additional the expected SampleRate could be given like
+
+```shell
+sf2generate input.wav output.sf2 48000
+```
+Otherwise, the SampleRate from the file will be used.
+
 That will generate a SF2 SoundFont with two instruments, 
 a SingleShoot and a LOOP.
-The base Note is set to 60 (C4).
 
-Additional optional arguments been RootKey Chorus Reverb
-They must been given in that order, when used.
-Chorus and Reverb been percent in the range from 0 to 100
-RootKey is the MIDI Note in the range from 0 to 127
 
-Default settings been
-```shell
- 60 50 50
-```
 ## Features
 
 <p align="center">
     <img src="https://github.com/brummer10/sf2generate/blob/main/sf2generate.png?raw=true" />
 </p>
 
-When starting without command-line arguments it will start a GUI which 
+When starting without command-line arguments sf2generate will start with a GUI, 
 allow you to select a audio file,
 clip it to the range to be used for the OneShoot Instrument
 and set the loop points to be used for the Looped Instrument.
@@ -35,9 +36,9 @@ and set the loop points to be used for the Looped Instrument.
     <img src="https://github.com/brummer10/sf2generate/blob/main/sf2generate-settings.png?raw=true" />
 </p>
 
-A pitch detector will then calculate the RootKey and
+The pitch detector will then calculate the RootKey and
 the Pitch correction to be used in the SoundFont.
-You could still change that to your needs, if you wish.
+You could still change that to your needs before generate the SoundFont.
 
 As well you could set the values in percent for Chorus and Reverb.
 

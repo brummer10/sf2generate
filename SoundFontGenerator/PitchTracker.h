@@ -19,8 +19,8 @@
 
 class PitchTracker {
 public:
-    // Estimate dominant pitch of a audio buffer and return the resulting MIDI key.
-    uint8_t getPitch( const float* buffer, size_t N,
+    // Estimate dominant pitch of a audio buffer (first channel only) and return the resulting MIDI key.
+    uint8_t getPitch( const float* buffer, size_t N, uint32_t channels,
             float sampleRate, int16_t* pitchCorrection = nullptr,
             float* frequency = nullptr, float minFreq = 20.0f,
             float maxFreq = 5000.0f) {
@@ -31,19 +31,19 @@ public:
             return 0;
         }
 
-        // --- Allocate FFTW buffers
+        // Allocate FFTW buffers
         fftwf_complex* out = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex) * (N/2 + 1));
         float* in = (float*) fftwf_malloc(sizeof(float) * N);
         fftwf_plan plan = fftwf_plan_dft_r2c_1d(N, in, out, FFTW_ESTIMATE);
 
         // Remove DC offset & apply Hann window
         float mean = 0.0f;
-        for (size_t i = 0; i < N; ++i) mean += buffer[i];
+        for (size_t i = 0; i < N; ++i) mean += buffer[i * channels];
         mean /= N;
 
         for (size_t i = 0; i < N; ++i) {
             float w = 0.5f - 0.5f * std::cos(2.0f * M_PI * i / (N - 1));
-            in[i] = (buffer[i] - mean) * w;
+            in[i] = (buffer[i * channels] - mean) * w;
         }
 
         // Execute FFT

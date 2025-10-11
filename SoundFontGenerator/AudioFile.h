@@ -50,7 +50,7 @@ public:
     }
 
     // load a Audio File into the buffer
-    inline bool getAudioFile(const char* file, const uint32_t expectedSampleRate) {
+    inline bool getAudioFile(const char* file, const uint32_t expectedSampleRate = 0) {
         SF_INFO info;
         info.format = 0;
 
@@ -82,7 +82,8 @@ public:
         channels = info.channels;
         samplerate = info.samplerate;
         sf_close(sndfile);
-        samples = checkSampleRate(&samplesize, channels, samples, samplerate, expectedSampleRate);
+        if (expectedSampleRate)
+            samples = checkSampleRate(&samplesize, channels, samples, samplerate, expectedSampleRate);
         return samples ? true : false;
     }
 
